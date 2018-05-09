@@ -1,39 +1,59 @@
 const ethScan = require('etherscan-api').init('XHSKYS8FKN6U9FGRHMUJM7WB3E811TXZAY')
 const abiDecoder = require('abi-decoder')
-
+const http = require('http')
 const WETHcontract = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'
 const ASTcontract = '0x27054b13b1b798b345b591a4d22e6562d47ea75a'
 const DEXcontract = '0x8fd3121013a07c57f0d69646e86e7a4880b467b7'
 var totalAST = 0
 var totalWETH = 0
-var blockNo = 5578558
+const averageBlockPerHour = 245
 
-ethScan.contract.getabi(DEXcontract).then((resInit) => {
-  if (resInit.status) {
+http.get('http://api.etherscan.io/api?module=proxy&action=eth_blockNumber', (res) => {
+  res.setEncoding('utf8')
+  let rawData = ''
+  res.on('data', (chunk) => { rawData += chunk })
+  res.on('end', () => {
     try {
-      const abi = JSON.parse(resInit.result)
-      abiDecoder.addABI(abi)
+      const parsedData = JSON.parse(rawData)
+      if (parsedData.result) {
+          const currentBlock = parseInt(parsedData.result, 16)
+          const blockNo = currentBlock - (averageBlockPerHour * 24)
+          console.log('Calculate transactions from block: ', blockNo)
+          calculateVolume(blockNo)
+      }
     } catch (e) {
-      console.log(e)
+      console.error(e.message)
     }
-    ethScan.account.txlist(DEXcontract, blockNo, 'latest', 'asc').then((txRes) => {
-      const txList = txRes.result
-      const mapped = txList
-        .filter((tx) => {
-          return tx.isError !== '1'
-        })
-        .map(mapTransactions)
-        .map(mapDecimal)
-        .map(mapRate)
-
-      // grab newest transactions 100
-      console.log('TOTAL Transactions: ', mapped.length)
-      console.log('TOTAL AST: ', totalAST)
-      console.log('TOTAL ETH: ', totalWETH)
-    })
-  }
+  })
 })
 
+function calculateVolume(blockNo) {
+  ethScan.contract.getabi(DEXcontract).then((resInit) => {
+    if (resInit.status) {
+      try {
+        const abi = JSON.parse(resInit.result)
+        abiDecoder.addABI(abi)
+      } catch (e) {
+        console.log(e)
+      }
+      ethScan.account.txlist(DEXcontract, blockNo, 'latest', 'asc').then((txRes) => {
+        const txList = txRes.result
+        const mapped = txList
+          .filter((tx) => {
+            return tx.isError !== '1'
+          })
+          .map(mapTransactions)
+          .map(mapDecimal)
+          .map(mapRate)
+
+        // grab newest transactions 100
+        console.log('TOTAL Transactions: ', mapped.length)
+        console.log('TOTAL AST: ', totalAST)
+        console.log('TOTAL ETH: ', totalWETH)
+      })
+    }
+  })
+}
 
 function mapTransactions (tx) {
   const decoded = abiDecoder.decodeMethod(tx.input)
