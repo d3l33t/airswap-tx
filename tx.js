@@ -1,4 +1,5 @@
-const ethScan = require('etherscan-api').init('XHSKYS8FKN6U9FGRHMUJM7WB3E811TXZAY')
+const APIKEY = ''
+const ethScan = require('etherscan-api').init(APIKEY)
 const abiDecoder = require('abi-decoder')
 const http = require('http')
 const WETHcontract = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'
