@@ -3,10 +3,12 @@ const ethScan = require('etherscan-api').init(APIKEY)
 const abiDecoder = require('abi-decoder')
 const http = require('http')
 const WETHcontract = '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'
+const ETHcontract = '0x0000000000000000000000000000000000000000'
 const ASTcontract = '0x27054b13b1b798b345b591a4d22e6562d47ea75a'
 const DEXcontract = '0x8fd3121013a07c57f0d69646e86e7a4880b467b7'
 var totalAST = 0
 var totalWETH = 0
+var totalETH = 0
 const averageBlockPerHour = 245
 
 http.get('http://api.etherscan.io/api?module=proxy&action=eth_blockNumber', (res) => {
@@ -37,7 +39,7 @@ function calculateVolume(blockNo) {
       } catch (e) {
         console.log(e)
       }
-      ethScan.account.txlist(DEXcontract, blockNo, 'latest', 'asc').then((txRes) => {
+      ethScan.account.txlist(DEXcontract, blockNo, 'latest', 'desc').then((txRes) => {
         const txList = txRes.result
         const mapped = txList
           .filter((tx) => {
@@ -46,11 +48,11 @@ function calculateVolume(blockNo) {
           .map(mapTransactions)
           .map(mapDecimal)
           .map(mapRate)
-
         // grab newest transactions 100
         console.log('TOTAL Transactions: ', mapped.length)
         console.log('TOTAL AST: ', totalAST)
-        console.log('TOTAL ETH: ', totalWETH)
+        console.log('TOTAL WETH: ', totalWETH)
+        console.log('TOTAL ETH: ', totalETH)
       })
     }
   })
@@ -74,6 +76,12 @@ function mapTransactions (tx) {
       if (item.name === 'takerToken' && item.value === ASTcontract) {
         tx.takerSymbol = 'AST'
       }
+      if (item.name === 'makerToken' && item.value === ETHcontract) {
+        tx.makerSymbol = 'ETH'
+      }
+      if (item.name === 'takerToken' && item.value === ETHcontract) {
+        tx.takerSymbol = 'ETH'
+      }
     })
   }
   return tx
@@ -88,6 +96,14 @@ function mapDecimal (tx) {
     tx.takerAmountRate = tx.takerAmount / 1000000000000000000
     totalWETH += tx.takerAmountRate
   }
+  if (tx.makerSymbol === 'ETH') {
+    tx.makerAmountRate = tx.makerAmount / 1000000000000000000
+    totalETH += tx.makerAmountRate
+  }
+  if (tx.takerSymbol === 'ETH') {
+    tx.takerAmountRate = tx.takerAmount / 1000000000000000000
+    totalETH += tx.takerAmountRate
+  }
   if (tx.makerSymbol === 'AST') {
     tx.makerAmountRate = tx.makerAmount / 10000
     totalAST += tx.makerAmountRate
@@ -101,6 +117,8 @@ function mapDecimal (tx) {
 
 function mapRate (tx) {
   if (tx.makerSymbol === 'WETH') {
+    tx.rate = tx.makerAmountRate / tx.takerAmountRate
+  } else if (tx.makerSymbol === 'ETH') {
     tx.rate = tx.makerAmountRate / tx.takerAmountRate
   } else {
     tx.rate = tx.takerAmountRate / tx.makerAmountRate
